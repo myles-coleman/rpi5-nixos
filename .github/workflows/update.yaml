@@ -1,0 +1,85 @@
+name: Update NixOS Nodes
+
+on:
+  workflow_dispatch:
+    inputs:
+      nodes:
+        description: 'Nodes to update (comma-separated, e.g., "0,1,2,3" or "all")'
+        required: true
+        default: 'all'
+
+jobs:
+  update-nodes:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [0, 1, 2, 3]
+      fail-fast: false
+      max-parallel: 1
+    
+    steps:
+      - name: Check if node should be updated
+        id: check_node
+        run: |
+          NODES_INPUT="${{ github.event.inputs.nodes }}"
+          CURRENT_NODE="${{ matrix.node }}"
+          
+          if [ "$NODES_INPUT" = "all" ]; then
+            echo "update=true" >> $GITHUB_OUTPUT
+          elif echo "$NODES_INPUT" | grep -q "$CURRENT_NODE"; then
+            echo "update=true" >> $GITHUB_OUTPUT
+          else
+            echo "update=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout Repository
+        if: steps.check_node.outputs.update == 'true'
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Install Nix
+        if: steps.check_node.outputs.update == 'true'
+        uses: cachix/install-nix-action@4e002c8ec80594ecd40e759629461e26c8abed15 # v31.9.0
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            extra-substituters = https://nixos-raspberrypi.cachix.org
+            extra-trusted-public-keys = nixos-raspberrypi.cachix.org-1:4iMO9LXa8BqhU+Rpg6LQKiGa2lsNh/j2oiYLNOQ5sPI=
+
+      - name: Setup SSH key
+        if: steps.check_node.outputs.update == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H node${{ matrix.node }}.local >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Tailscale
+        uses: tailscale/github-action@53acf823325fe9ca47f4cdaa951f90b4b0de5bb9 # v4.1.1
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Accept Tailscale routes
+        run: sudo tailscale set --accept-routes
+
+      - name: Set Nameservers
+        run: |
+          echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf > /dev/null
+          echo "nameserver 8.8.4.4" | sudo tee -a /etc/resolv.conf > /dev/null
+
+      - name: Deploy to node
+        if: steps.check_node.outputs.update == 'true'
+        run: |
+          echo "Deploying to node${{ matrix.node }}..."
+          nixos-rebuild switch \
+            --flake .#node${{ matrix.node }} \
+            --target-host pi@node${{ matrix.node }}.local \
+            --use-remote-sudo \
+            --build-host pi@node${{ matrix.node }}.local
+
+      - name: Verify node health
+        if: steps.check_node.outputs.update == 'true' && github.event.inputs.dry_run != 'true'
+        run: |
+          echo "Verifying node${{ matrix.node }} health..."
+          ssh pi@node${{ matrix.node }}.local "systemctl is-active k3s || systemctl is-active k3s-agent"
