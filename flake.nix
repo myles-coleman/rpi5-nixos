@@ -41,6 +41,9 @@
           initialPassword = "raspberry";
           isNormalUser = true;
           extraGroups = ["wheel"];
+          openssh.authorizedKeys.keys = [
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJD1KAysbVy2yc3XysuVmY3njoihKoRzHv/1BpS/uxS8 github-actions"
+          ];
         };
 
         services.openssh = {
