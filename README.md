@@ -13,8 +13,22 @@ Deploy NixOS with k3s to Raspberry Pi 5 nodes using installer SD card first.
 
 ## Quick Start
 
-### 1. Generate K3s Token
+### 1. Build Installer Image
 
+```bash
+# replace /dev/sdX with your SD card device
+nix build github:nvmd/nixos-raspberrypi#installerImages.rpi5
+zstd -d ./result/sd-image/*.img.zst -c | sudo dd of=/dev/sdX bs=4M status=progress
+```
+
+### 2. Boot from Installer
+
+1. Insert SD card into Pi
+2. Boot and note SSH credentials from screen
+3. SSH in: `ssh root@nixos-installer.local`
+4. Check SSD device: `lsblk`
+
+### 3. Deploy Server
 
 ```bash
 # Generate a random token for the server
@@ -23,40 +37,30 @@ openssl rand -hex 32 > token
 ```
 
 ```bash
-# Get node-token from server
+# token needs to be added to git before building, make sure to remove after building
+git add -f token
+git reset token
+```
+
+```bash
+nixos-anywhere --flake .#node0 root@nixos-installer.local
+```
+
+### 4. Deploy Agents
+
+```bash
+# Get node-token from server (replace token value from previous step)
 ssh pi@node0.local
 sudo cat /var/lib/rancher/k3s/server/node-token
 ```
 
 ```bash
-# grab the kubeconfig
-scp pi@node0.local:~/.kube/config ~/.kube/config
-```
-
-```bash
-# token needs to be added before building, make sure to remove after building
-git add -f token
-git reset token
-```
-
-### 2. Build Installer Image
-
-```bash
-nix build github:nvmd/nixos-raspberrypi#installerImages.rpi5
-zstd -d ./result/sd-image/*.img.zst -c | sudo dd of=/dev/sdX bs=4M status=progress
-```
-
-### 3. Boot from Installer
-
-1. Insert SD card into Pi
-2. Boot and note SSH credentials from screen
-3. SSH in: `ssh root@nixos-installer.local`
-4. Check SSD device: `lsblk`
-
-### 4. Deploy
-
-```bash
 nixos-anywhere --flake .#node1 root@nixos-installer.local
+```
+
+```bash
+# grab the kubeconfig for local use
+scp pi@node0.local:~/.kube/config ~/.kube/config
 ```
 
 ## Updates
