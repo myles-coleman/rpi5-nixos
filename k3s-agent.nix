@@ -11,5 +11,10 @@
     role = "agent";
     serverAddr = "https://10.0.0.200:6443";
     tokenFile = "/etc/rancher/k3s/token";
+    extraFlags = toString [
+      "--node-ip=${config.networking.interfaces.end0.ipv4.addresses.0.address}"
+      "--node-external-ip=${config.networking.interfaces.end0.ipv4.addresses.0.address}"
+      "--flannel-iface=end0"
+    ];
   };
 }
