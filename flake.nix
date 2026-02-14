@@ -42,13 +42,15 @@
           isNormalUser = true;
           extraGroups = ["wheel"];
           openssh.authorizedKeys.keys = [
-            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJD1KAysbVy2yc3XysuVmY3njoihKoRzHv/1BpS/uxS8 github-actions"
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGzbHiGJguieUhUnv5ktHoLjOhN9TqEUJS/zwDFZqrsC github-actions"
           ];
         };
 
+        security.sudo.wheelNeedsPassword = false;
+
         services.openssh = {
           enable = true;
-          settings.PasswordAuthentication = true;
+          settings.PasswordAuthentication = false;
           settings.PermitRootLogin = "no";
         };
 
