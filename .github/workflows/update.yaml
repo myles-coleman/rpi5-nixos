@@ -89,7 +89,9 @@ jobs:
 
       - name: Setup K3s Token
         if: steps.check_node.outputs.update == 'true'
-        run: echo "${{ secrets.K3S_TOKEN }}" > token
+        run: |
+          echo "${{ secrets.K3S_TOKEN }}" > token
+          git add -f token
 
       - name: Deploy to node
         if: steps.check_node.outputs.update == 'true'
