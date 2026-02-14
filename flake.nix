@@ -46,6 +46,9 @@
           ];
         };
 
+        # Enable passwordless sudo for wheel group (required for CI/CD deployments)
+        security.sudo.wheelNeedsPassword = false;
+
         services.openssh = {
           enable = true;
           settings.PasswordAuthentication = true;
