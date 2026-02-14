@@ -72,7 +72,7 @@ jobs:
         if: steps.check_node.outputs.update == 'true'
         run: |
           echo "Deploying to node${{ matrix.node }}..."
-          nixos-rebuild switch \
+          nix run nixpkgs#nixos-rebuild -- switch \
             --flake .#node${{ matrix.node }} \
             --target-host pi@node${{ matrix.node }}.local \
             --use-remote-sudo \
