@@ -61,18 +61,16 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           
-          # Configure SSH to use only our key and accept new host keys
+          # Configure SSH to use only our key and skip host key checking
           cat > ~/.ssh/config <<EOF
           Host *
             IdentityFile ~/.ssh/id_ed25519
             IdentitiesOnly yes
-            StrictHostKeyChecking accept-new
-            UserKnownHostsFile ~/.ssh/known_hosts
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ControlMaster no
           EOF
           chmod 600 ~/.ssh/config
-          
-          # Scan host key
-          ssh-keyscan -H ${{ steps.check_node.outputs.node_ip }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Tailscale
         uses: tailscale/github-action@53acf823325fe9ca47f4cdaa951f90b4b0de5bb9 # v4.1.1
@@ -88,6 +86,10 @@ jobs:
         run: |
           echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf > /dev/null
           echo "nameserver 8.8.4.4" | sudo tee -a /etc/resolv.conf > /dev/null
+
+      - name: Setup K3s Token
+        if: steps.check_node.outputs.update == 'true'
+        run: echo "${{ secrets.K3S_TOKEN }}" > token
 
       - name: Deploy to node
         if: steps.check_node.outputs.update == 'true'
