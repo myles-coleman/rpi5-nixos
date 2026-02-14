@@ -24,6 +24,15 @@ jobs:
           NODES_INPUT="${{ github.event.inputs.nodes }}"
           CURRENT_NODE="${{ matrix.node }}"
           
+          # Map node number to IP address
+          case $CURRENT_NODE in
+            0) NODE_IP="10.0.0.140" ;;
+            1) NODE_IP="10.0.0.141" ;;
+            2) NODE_IP="10.0.0.142" ;;
+            3) NODE_IP="10.0.0.143" ;;
+          esac
+          echo "node_ip=$NODE_IP" >> $GITHUB_OUTPUT
+          
           if [ "$NODES_INPUT" = "all" ]; then
             echo "update=true" >> $GITHUB_OUTPUT
           elif echo "$NODES_INPUT" | grep -q "$CURRENT_NODE"; then
@@ -51,7 +60,7 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H node${{ matrix.node }}.local >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -H ${{ steps.check_node.outputs.node_ip }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Tailscale
         uses: tailscale/github-action@53acf823325fe9ca47f4cdaa951f90b4b0de5bb9 # v4.1.1
@@ -71,15 +80,15 @@ jobs:
       - name: Deploy to node
         if: steps.check_node.outputs.update == 'true'
         run: |
-          echo "Deploying to node${{ matrix.node }}..."
+          echo "Deploying to node${{ matrix.node }} (${{ steps.check_node.outputs.node_ip }})..."
           nix run nixpkgs#nixos-rebuild -- switch \
             --flake .#node${{ matrix.node }} \
-            --target-host pi@node${{ matrix.node }}.local \
+            --target-host pi@${{ steps.check_node.outputs.node_ip }} \
             --use-remote-sudo \
-            --build-host pi@node${{ matrix.node }}.local
+            --build-host pi@${{ steps.check_node.outputs.node_ip }}
 
       - name: Verify node health
-        if: steps.check_node.outputs.update == 'true' && github.event.inputs.dry_run != 'true'
+        if: steps.check_node.outputs.update == 'true'
         run: |
           echo "Verifying node${{ matrix.node }} health..."
-          ssh pi@node${{ matrix.node }}.local "systemctl is-active k3s || systemctl is-active k3s-agent"
+          ssh pi@${{ steps.check_node.outputs.node_ip }} "systemctl is-active k3s || systemctl is-active k3s-agent"
