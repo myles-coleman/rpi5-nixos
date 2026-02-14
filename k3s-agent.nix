@@ -12,8 +12,8 @@
     serverAddr = "https://10.0.0.200:6443";
     tokenFile = "/etc/rancher/k3s/token";
     extraFlags = [
-      "--node-ip=${config.networking.interfaces.end0.ipv4.addresses.0.address}"
-      "--node-external-ip=${config.networking.interfaces.end0.ipv4.addresses.0.address}"
+      "--node-ip=${(builtins.elemAt config.networking.interfaces.end0.ipv4.addresses 0).address}"
+      "--node-external-ip=${(builtins.elemAt config.networking.interfaces.end0.ipv4.addresses 0).address}"
       "--flannel-iface=end0"
     ];
   };
