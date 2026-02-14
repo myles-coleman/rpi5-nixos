@@ -60,6 +60,16 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
+          
+          # Configure SSH to accept new host keys
+          cat >> ~/.ssh/config <<EOF
+          Host *
+            StrictHostKeyChecking accept-new
+            UserKnownHostsFile ~/.ssh/known_hosts
+          EOF
+          chmod 600 ~/.ssh/config
+          
+          # Scan host key
           ssh-keyscan -H ${{ steps.check_node.outputs.node_ip }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Tailscale
