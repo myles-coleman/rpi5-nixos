@@ -28,9 +28,9 @@
     system = "x86_64-linux";
     targetSystem = "aarch64-linux";
     
-    baseConfig = [
+    # Shared configuration for all nodes (users, SSH, mDNS, locale, etc.)
+    sharedConfig = [
       nixos-raspberrypi.nixosModules.raspberry-pi-5.base
-      nixos-raspberrypi.nixosModules.raspberry-pi-5.page-size-16k
       nixos-raspberrypi.nixosModules.raspberry-pi-5.bluetooth
       nixos-raspberrypi.nixosModules.raspberry-pi-5.display-vc4
       disko.nixosModules.disko
@@ -74,6 +74,18 @@
         hardware.enableRedistributableFirmware = true;
         system.stateVersion = "25.05";
       })
+    ];
+
+    # K3s cluster nodes: 16K page size for optimized memory performance
+    baseConfig = sharedConfig ++ [
+      nixos-raspberrypi.nixosModules.raspberry-pi-5.page-size-16k
+    ];
+
+    # GPU node: no page-size-16k (16K pages cause issues with GPU workloads
+    # and Box86/Proton gaming). Includes AMD GPU configuration.
+    # Reference: https://github.com/raspberrypi/linux/pull/7113
+    gpuBaseConfig = sharedConfig ++ [
+      ./gpu.nix
     ];
   in {
     nixosConfigurations.node0 = nixos-raspberrypi.lib.nixosSystem {
@@ -144,11 +156,30 @@
       ];
     };
 
+    # GPU-enabled Raspberry Pi 5 (8GB) with AMD RX 6700 XT eGPU
+    nixosConfigurations.node4 = nixos-raspberrypi.lib.nixosSystem {
+      system = targetSystem;
+      specialArgs = inputs;
+      modules = gpuBaseConfig ++ [
+        ./k3s-agent.nix
+        ({...}: {
+          networking.hostName = "node4";
+          networking.interfaces.end0.ipv4.addresses = [{
+            address = "10.0.0.144";
+            prefixLength = 24;
+          }];
+          networking.defaultGateway = "10.0.0.1";
+          networking.nameservers = [ "10.0.0.1" ];
+        })
+      ];
+    };
+
     packages.${system} = {
       node0 = self.nixosConfigurations.node0.config.system.build.sdImage;
       node1 = self.nixosConfigurations.node1.config.system.build.sdImage;
       node2 = self.nixosConfigurations.node2.config.system.build.sdImage;
       node3 = self.nixosConfigurations.node3.config.system.build.sdImage;
+      node4 = self.nixosConfigurations.node4.config.system.build.sdImage;
       
       default = self.packages.${system}.node0;
     };

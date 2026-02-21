@@ -72,7 +72,7 @@ nixos-rebuild switch --flake .#node1 --target-host pi@node1.local --use-remote-s
 
 ### Update all nodes
 ```bash
-for i in {0..3}; do
+for i in {0..4}; do
   nixos-rebuild switch --flake .#node$i --target-host pi@node$i.local --use-remote-sudo --build-host pi@node$i.local
 done
 ```
