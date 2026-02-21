@@ -31,10 +31,7 @@
     # Shared configuration for all nodes (users, SSH, mDNS, locale, etc.)
     sharedConfig = [
       nixos-raspberrypi.nixosModules.raspberry-pi-5.base
-      nixos-raspberrypi.nixosModules.raspberry-pi-5.bluetooth
       nixos-raspberrypi.nixosModules.raspberry-pi-5.display-vc4
-      disko.nixosModules.disko
-      ./disko-config.nix
       
       ({pkgs, ...}: {
         users.users.pi = {
@@ -76,15 +73,18 @@
       })
     ];
 
-    # K3s cluster nodes: 16K page size for optimized memory performance
+    # K3s cluster nodes (NVMe): 16K page size + disko for NVMe partitioning
     baseConfig = sharedConfig ++ [
       nixos-raspberrypi.nixosModules.raspberry-pi-5.page-size-16k
+      disko.nixosModules.disko
+      ./disko-config.nix
     ];
 
-    # GPU node: no page-size-16k (16K pages cause issues with GPU workloads
-    # and Box86/Proton gaming). Includes AMD GPU configuration.
+    # GPU node (SD card boot): no page-size-16k (16K pages cause issues with
+    # GPU workloads). Uses sd-image module instead of disko (no NVMe SSD).
     # Reference: https://github.com/raspberrypi/linux/pull/7113
     gpuBaseConfig = sharedConfig ++ [
+      nixos-raspberrypi.nixosModules.sd-image
       ./gpu.nix
     ];
   in {
@@ -156,7 +156,7 @@
       ];
     };
 
-    # GPU-enabled Raspberry Pi 5 (8GB) with AMD RX 6700 XT eGPU
+    # GPU-enabled Raspberry Pi 5 (8GB) with AMD RX 6700 XT eGPU (SD card)
     nixosConfigurations.node4 = nixos-raspberrypi.lib.nixosSystem {
       system = targetSystem;
       specialArgs = inputs;
