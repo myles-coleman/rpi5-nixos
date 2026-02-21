@@ -7,7 +7,7 @@ index bd90404ea609..cd42a5ebad53 100644
  	};
  	struct ttm_tt *ttm = bo->ttm;
 -	struct ttm_resource_manager *man =
--		ttm_manager_type(bo->bdev, bo->resource->mem_type);
+-			ttm_manager_type(bo->bdev, bo->resource->mem_type);
  	pgprot_t prot;
  	int ret;
  
