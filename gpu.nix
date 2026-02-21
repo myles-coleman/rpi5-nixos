@@ -32,9 +32,8 @@
     {
       name = "ttm-arm64-gpu-cache-coherency";
       patch = ./patches/ttm-arm64-gpu-cache-coherency.patch;
-      # Enable the amdgpu kernel driver and DRM subsystem
-      extraStructuredConfig = with lib.kernel; {
-        DRM = module;
+      # Enable the amdgpu kernel driver
+      structuredExtraConfig = with lib.kernel; {
         DRM_AMDGPU = module;
         HSA_AMD = yes;
       };
