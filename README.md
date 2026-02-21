@@ -69,10 +69,10 @@ node4 boots from SD card (no NVMe SSD). Build and flash the image directly:
 
 ```bash
 # Build the SD image
-nix build .#node4
+nix --extra-experimental-features 'nix-command flakes' build .#node4
 
 # Flash to SD card (replace /dev/sdX)
-zstd -d ./result/sd-image/*.img.zst -c | sudo dd of=/dev/sdX bs=4M status=progress
+zstd -d ./result/sd-image/*.img.zst -c | sudo dd of=/dev/sdX bs=4M status=progress oflag=sync
 ```
 
 Insert the SD card into the Pi and boot. The partition will auto-expand on first boot.
