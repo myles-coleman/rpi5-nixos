@@ -78,7 +78,7 @@
     glslang            # GLSL to SPIR-V compiler (needed for llama.cpp Vulkan build)
 
     # GPU monitoring
-    nvtop              # GPU process monitor (supports AMD)
+    nvtopPackages.amd  # GPU process monitor for AMD
 
     # Mesa utilities
     mesa-demos         # glxinfo, glxgears, etc.
