@@ -24,24 +24,20 @@
 
 {
   # --- Kernel configuration ---
-  # Apply the 15-line TTM cache coherency patch for ARM64 eGPU support.
-  # This patch fixes DMA cache coherency in the TTM memory manager, enabling
-  # AMD (and Intel) GPUs to work correctly on ARM64 platforms like the Pi 5.
-  # Source: https://github.com/geerlingguy/raspberry-pi-pcie-devices/discussions/756
-  boot.kernelPatches = [
-    {
-      name = "ttm-arm64-gpu-cache-coherency";
-      patch = ./patches/ttm-arm64-gpu-cache-coherency.patch;
-      # Enable the amdgpu kernel driver
-      structuredExtraConfig = with lib.kernel; {
-        DRM_AMDGPU = module;
-        HSA_AMD = yes;
-      };
-    }
-  ];
+  # The GPU kernel branch (rpi-6.12.y-pcie-gpu) already includes:
+  # - TTM cache coherency patch for ARM64
+  # - AMD GPU driver enabled
+  # - All necessary PCIe fixes for eGPU support
+  # No additional kernel patches needed.
 
-  # Load amdgpu module early in boot
-  boot.initrd.kernelModules = [ "amdgpu" ];
+  # Load amdgpu module
+  boot.kernelModules = [ "amdgpu" ];
+
+  # Kernel parameters for AMD GPU on ARM64 PCIe
+  # - pci=realloc: Reallocate PCI resources to fix "resources unassigned" errors
+  boot.kernelParams = [
+    "pci=realloc"
+  ];
 
   # --- PCIe configuration ---
   # Enable PCIe Gen 3 for maximum bandwidth to the eGPU (8 GT/s on single lane)

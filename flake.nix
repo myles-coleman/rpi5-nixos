@@ -8,6 +8,13 @@
       url = "github:nix-community/disko";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # Raspberry Pi Linux kernel with AMD/Intel GPU patches
+    # geerlingguy's branch with the 2-commit GPU fix on top of rpi-6.17.y
+    # See: https://github.com/geerlingguy/linux/pull/10
+    rpi-linux-gpu = {
+      url = "github:geerlingguy/linux/rpi-6.17.y-gpu";
+      flake = false;
+    };
   };
 
   nixConfig = {
@@ -24,6 +31,7 @@
     nixpkgs,
     nixos-raspberrypi,
     disko,
+    rpi-linux-gpu,
   } @ inputs: let
     system = "x86_64-linux";
     targetSystem = "aarch64-linux";
@@ -86,6 +94,15 @@
     gpuBaseConfig = sharedConfig ++ [
       nixos-raspberrypi.nixosModules.sd-image
       ./gpu.nix
+      # Override kernel to use the GPU-patched branch (6by9's rpi-6.18.y-pcie-gpu)
+      ({pkgs, lib, ...}: {
+        boot.kernelPackages = lib.mkForce (pkgs.linuxPackagesFor (pkgs.rpi.linux_rpi.bcm2712.override {
+          argsOverride = {
+            src = inputs.rpi-linux-gpu;
+            version = "6.18.0-pcie-gpu";
+          };
+        }));
+      })
     ];
   in {
     nixosConfigurations.node0 = nixos-raspberrypi.lib.nixosSystem {

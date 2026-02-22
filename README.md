@@ -81,7 +81,7 @@ Insert the SD card into the Pi and boot. The partition will auto-expand on first
 
 ### Update single node
 ```bash
-nixos-rebuild switch --flake .#node1 --target-host pi@node1.local --use-remote-sudo --build-host pi@node1.local
+NIX_SSHOPTS="-i ../gha-key" nixos-rebuild switch --flake .#node1 --target-host pi@node1.local --use-remote-sudo --build-host pi@node1.local
 ```
 
 ### Update all nodes
