@@ -97,13 +97,29 @@
       # Override kernel to use geerlingguy's GPU-patched branch (rpi-6.17.y-gpu)
       # This branch includes TTM cache coherency fixes + PCIe GPU enablement
       # that are not yet in the upstream RPi kernel used by nixos-raspberrypi.
+      # We build the kernel directly using buildLinux + bcm2712_defconfig rather
+      # than trying to override nixos-raspberrypi's kernel package.
       ({pkgs, lib, ...}: {
-        boot.kernelPackages = lib.mkForce (pkgs.linuxPackagesFor (pkgs.linux_rpi5.override {
-          argsOverride = {
-            src = rpi-linux-gpu;
-            modDirVersion = "6.17.0";
-            tag = "rpi-6.17.y-gpu";
+        boot.kernelPackages = lib.mkForce (pkgs.linuxPackagesFor (pkgs.buildLinux {
+          version = "6.17.0-rpi-gpu";
+          modDirVersion = "6.17.0";
+          src = rpi-linux-gpu;
+          defconfig = "bcm2712_defconfig";
+          kernelPatches = with pkgs.kernelPatches; [
+            bridge_stp_helper
+            request_key_helper
+          ];
+          structuredExtraConfig = with lib.kernel; {
+            DRM_AMDGPU = module;
+            HSA_AMD = yes;
           };
+          features = {
+            efiBootStub = false;
+          };
+          extraMeta = {
+            platforms = with lib.platforms; arm ++ aarch64;
+          };
+          ignoreConfigErrors = true;
         }));
       })
     ];
