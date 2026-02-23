@@ -24,11 +24,23 @@
 
 {
   # --- Kernel configuration ---
-  # The GPU kernel branch (rpi-6.12.y-pcie-gpu) already includes:
+  # The GPU kernel (geerlingguy's rpi-6.17.y-gpu branch) already includes:
   # - TTM cache coherency patch for ARM64
-  # - AMD GPU driver enabled
+  # - AMD GPU driver support
   # - All necessary PCIe fixes for eGPU support
-  # No additional kernel patches needed.
+  # The kernel override is in flake.nix (gpuBaseConfig).
+
+  # Ensure DRM_AMDGPU is enabled as a module in the kernel config
+  boot.kernelPatches = [
+    {
+      name = "amdgpu-enable";
+      patch = null;
+      structuredExtraConfig = with lib.kernel; {
+        DRM_AMDGPU = module;
+        HSA_AMD = yes;
+      };
+    }
+  ];
 
   # Load amdgpu module
   boot.kernelModules = [ "amdgpu" ];
