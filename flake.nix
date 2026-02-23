@@ -102,7 +102,7 @@
       ({pkgs, lib, ...}: {
         # ZFS doesn't support kernel 6.17 yet — disable it (node4 uses ext4 on SD card)
         boot.supportedFilesystems.zfs = lib.mkForce false;
-        boot.kernelPackages = lib.mkForce (pkgs.linuxPackagesFor (pkgs.buildLinux {
+        boot.kernelPackages = lib.mkForce (pkgs.linuxPackagesFor ((pkgs.buildLinux {
           version = "6.17.0-rpi-gpu";
           modDirVersion = "6.17.0";
           src = rpi-linux-gpu;
@@ -114,6 +114,9 @@
           structuredExtraConfig = with lib.kernel; {
             DRM_AMDGPU = module;
             HSA_AMD = yes;
+            # Clear LOCALVERSION set by bcm2712_defconfig ("-v8-16k")
+            # so modDirVersion stays "6.17.0"
+            LOCALVERSION = freeform "";
           };
           features = {
             efiBootStub = false;
@@ -122,6 +125,14 @@
             platforms = with lib.platforms; arm ++ aarch64;
           };
           ignoreConfigErrors = true;
+        }).overrideAttrs {
+          # bcm2712_defconfig sets CONFIG_LOCALVERSION="-v8-16k" which gets
+          # baked in before structuredExtraConfig can override it. Force it
+          # empty in the generated .config after configure phase.
+          postConfigure = ''
+            sed -i $buildRoot/.config -e 's/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION=""/'
+            sed -i $buildRoot/include/config/auto.conf -e 's/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION=""/'
+          '';
         }));
       })
     ];
