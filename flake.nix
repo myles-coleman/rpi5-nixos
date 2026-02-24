@@ -117,6 +117,9 @@
             # Clear LOCALVERSION set by bcm2712_defconfig ("-v8-16k")
             # so modDirVersion stays "6.17.0"
             LOCALVERSION = freeform "";
+            # Disable bcachefs — fails to link with nixpkgs binutils on 6.17
+            # (not needed; node4 uses ext4 on SD card)
+            BCACHEFS_FS = no;
           };
           features = {
             efiBootStub = false;
@@ -132,6 +135,9 @@
           postConfigure = ''
             sed -i $buildRoot/.config -e 's/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION=""/'
             sed -i $buildRoot/include/config/auto.conf -e 's/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION=""/'
+            # Force-disable bcachefs (linker failure with nixpkgs binutils on 6.17)
+            sed -i $buildRoot/.config -e 's/^CONFIG_BCACHEFS_FS=.*/# CONFIG_BCACHEFS_FS is not set/'
+            sed -i $buildRoot/include/config/auto.conf -e '/^CONFIG_BCACHEFS_FS=/d'
           '';
         }));
       })
