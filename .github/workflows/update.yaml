@@ -107,6 +107,17 @@ jobs:
             --use-remote-sudo \
             --build-host pi@${{ steps.check_node.outputs.node_ip }}
 
+      - name: Dump build log on failure
+        if: failure() && steps.check_node.outputs.update == 'true'
+        run: |
+          echo "Fetching full build log from node${{ matrix.node }}..."
+          ssh pi@${{ steps.check_node.outputs.node_ip }} \
+            "nix-store -l \$(nix-store -qd /nix/store/*-linux-6.17.0-rpi-gpu.drv 2>/dev/null | head -1) 2>/dev/null | grep -i -E 'error|undefined|fatal|cannot|oom|killed|signal' | tail -100 || echo 'Could not find kernel build log'"
+          echo "---"
+          echo "Last 200 lines of kernel build log:"
+          ssh pi@${{ steps.check_node.outputs.node_ip }} \
+            "nix-store -l \$(ls /nix/store/*-linux-6.17.0-rpi-gpu.drv 2>/dev/null | head -1) 2>/dev/null | tail -200 || echo 'Could not find kernel build log'"
+
       - name: Verify node health
         if: steps.check_node.outputs.update == 'true'
         run: |
