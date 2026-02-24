@@ -128,16 +128,13 @@
             platforms = with lib.platforms; arm ++ aarch64;
           };
           ignoreConfigErrors = true;
-        }).overrideAttrs {
-          # bcm2712_defconfig sets CONFIG_LOCALVERSION="-v8-16k" which gets
-          # baked in before structuredExtraConfig can override it. Force it
-          # empty in the generated .config after configure phase.
-          postConfigure = ''
+        }).overrideAttrs (old: {
+          # Append to (not replace) buildLinux's postConfigure which runs make oldconfig.
+          postConfigure = (old.postConfigure or "") + ''
+            # bcm2712_defconfig sets CONFIG_LOCALVERSION="-v8-16k"; clear it
             sed -i $buildRoot/.config -e 's/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION=""/'
-            sed -i $buildRoot/include/config/auto.conf -e 's/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION=""/'
             # Force-disable bcachefs (linker failure with nixpkgs binutils on 6.17)
             sed -i $buildRoot/.config -e 's/^CONFIG_BCACHEFS_FS=.*/# CONFIG_BCACHEFS_FS is not set/'
-            sed -i $buildRoot/include/config/auto.conf -e '/^CONFIG_BCACHEFS_FS=/d'
           '';
         }));
       })
