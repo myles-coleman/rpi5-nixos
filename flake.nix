@@ -120,6 +120,8 @@
             # Disable bcachefs — fails to link with nixpkgs binutils on 6.17
             # (not needed; node4 uses ext4 on SD card)
             BCACHEFS_FS = no;
+            # gpio-pwm.c has void/int return type mismatch in 6.17
+            GPIO_PWM = no;
           };
           features = {
             efiBootStub = false;
@@ -135,8 +137,10 @@
             sed -i $buildRoot/.config -e 's/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION=""/'
             # Force-disable bcachefs (linker failure with nixpkgs binutils on 6.17)
             sed -i $buildRoot/.config -e 's/^CONFIG_BCACHEFS_FS=.*/# CONFIG_BCACHEFS_FS is not set/'
+            # gpio-pwm.c has void/int return type mismatch in 6.17
+            sed -i $buildRoot/.config -e 's/^CONFIG_GPIO_PWM=.*/# CONFIG_GPIO_PWM is not set/'
           '';
-        }));
+        })));
       })
     ];
   in {
