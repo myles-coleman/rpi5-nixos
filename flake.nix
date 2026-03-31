@@ -88,7 +88,7 @@
             prefixLength = 24;
           }];
           networking.defaultGateway = "10.0.0.1";
-          networking.nameservers = [ "10.0.0.188" ];
+          networking.nameservers = [ "10.0.0.1" ];
         })
       ];
     };
@@ -105,7 +105,7 @@
             prefixLength = 24;
           }];
           networking.defaultGateway = "10.0.0.1";
-          networking.nameservers = [ "10.0.0.188" ];
+          networking.nameservers = [ "10.0.0.1" ];
         })
       ];
     };
@@ -122,7 +122,7 @@
             prefixLength = 24;
           }];
           networking.defaultGateway = "10.0.0.1";
-          networking.nameservers = [ "10.0.0.188" ];
+          networking.nameservers = [ "10.0.0.1" ];
         })
       ];
     };
@@ -139,7 +139,7 @@
             prefixLength = 24;
           }];
           networking.defaultGateway = "10.0.0.1";
-          networking.nameservers = [ "10.0.0.188" ];
+          networking.nameservers = [ "10.0.0.1" ];
         })
       ];
     };
