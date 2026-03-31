@@ -1,6 +1,9 @@
 name: Update NixOS Nodes
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       nodes:
@@ -21,7 +24,7 @@ jobs:
       - name: Check if node should be updated
         id: check_node
         run: |
-          NODES_INPUT="${{ github.event.inputs.nodes }}"
+          NODES_INPUT="${{ github.event.inputs.nodes || 'all' }}"
           CURRENT_NODE="${{ matrix.node }}"
           
           # Map node number to IP address
