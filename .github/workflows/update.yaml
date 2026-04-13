@@ -104,7 +104,7 @@ jobs:
       - name: Check if node should be deployed
         id: check_node
         run: |
-          NODES_INPUT="${{ github.event.inputs.nodes }}"
+          NODES_INPUT="${{ github.event.inputs.nodes || 'all' }}"
           CURRENT_NODE="${{ matrix.node }}"
 
           case $CURRENT_NODE in
