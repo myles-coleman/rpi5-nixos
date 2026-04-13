@@ -30,17 +30,7 @@
   # - All necessary PCIe fixes for eGPU support
   # The kernel override is in flake.nix (gpuBaseConfig).
 
-  # Ensure DRM_AMDGPU is enabled as a module in the kernel config
-  boot.kernelPatches = [
-    {
-      name = "amdgpu-enable";
-      patch = null;
-      structuredExtraConfig = with lib.kernel; {
-        DRM_AMDGPU = module;
-        HSA_AMD = yes;
-      };
-    }
-  ];
+  # DRM_AMDGPU and HSA_AMD are configured in flake.nix (gpuBaseConfig kernel build).
 
   # Load amdgpu module
   boot.kernelModules = [ "amdgpu" ];

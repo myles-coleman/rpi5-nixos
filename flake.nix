@@ -20,9 +20,11 @@
   nixConfig = {
     extra-substituters = [
       "https://nixos-raspberrypi.cachix.org"
+      "https://rpi5-k3s.cachix.org"
     ];
     extra-trusted-public-keys = [
       "nixos-raspberrypi.cachix.org-1:4iMO9LXa8BqhU+Rpg6LQKiGa2lsNh/j2oiYLNOQ5sPI="
+      "rpi5-k3s.cachix.org-1:SH8ZlBgEj/jr0Facr2dnlXOyH7vzUe5W5YYQn70L7KA="
     ];
   };
 
@@ -114,6 +116,11 @@
           structuredExtraConfig = with lib.kernel; {
             DRM_AMDGPU = module;
             HSA_AMD = yes;
+            # Force 4K page size — bcm2712_defconfig defaults to 16K pages,
+            # which are incompatible with GPU workloads (amdgpu TTM/DRM).
+            # Reference: https://github.com/geerlingguy/raspberry-pi-pcie-devices/issues/222
+            ARM64_4K_PAGES = yes;
+            ARM64_16K_PAGES = no;
             # Clear LOCALVERSION set by bcm2712_defconfig ("-v8-16k")
             # so modDirVersion stays "6.17.0"
             LOCALVERSION = freeform "";
@@ -135,6 +142,9 @@
           postConfigure = (old.postConfigure or "") + ''
             # bcm2712_defconfig sets CONFIG_LOCALVERSION="-v8-16k"; clear it
             sed -i $buildRoot/.config -e 's/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION=""/'
+            # Force 4K page size — bcm2712_defconfig defaults to 16K which breaks amdgpu
+            sed -i $buildRoot/.config -e 's/^CONFIG_ARM64_16K_PAGES=.*/# CONFIG_ARM64_16K_PAGES is not set/'
+            sed -i $buildRoot/.config -e 's/^.*CONFIG_ARM64_4K_PAGES.*/CONFIG_ARM64_4K_PAGES=y/'
             # Force-disable bcachefs (linker failure with nixpkgs binutils on 6.17)
             sed -i $buildRoot/.config -e 's/^CONFIG_BCACHEFS_FS=.*/# CONFIG_BCACHEFS_FS is not set/'
             # gpio-pwm.c has void/int return type mismatch in 6.17
