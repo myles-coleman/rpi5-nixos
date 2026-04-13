@@ -60,7 +60,7 @@ jobs:
 
       - name: Install Nix
         if: steps.check_node.outputs.build == 'true'
-        uses: cachix/install-nix-action@96951a3bbe20ce196012edb66ff8e45f1ee3660a # v31.10.3
+        uses: cachix/install-nix-action@96951a368ba55167b55f1c916f7d416bac6505fe # v31.10.3
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
@@ -69,7 +69,7 @@ jobs:
 
       - name: Setup Cachix
         if: steps.check_node.outputs.build == 'true'
-        uses: cachix/cachix-action@1eb2ef6fd2bbe8351e780770e7d57e5e3afbd744 # v17
+        uses: cachix/cachix-action@1eb2ef646ac0255473d23a5907ad7b04ce94065c # v17
         with:
           name: rpi5-k3s
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
@@ -130,7 +130,7 @@ jobs:
 
       - name: Install Nix
         if: steps.check_node.outputs.deploy == 'true'
-        uses: cachix/install-nix-action@96951a3bbe20ce196012edb66ff8e45f1ee3660a # v31.10.3
+        uses: cachix/install-nix-action@96951a368ba55167b55f1c916f7d416bac6505fe # v31.10.3
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
@@ -156,7 +156,7 @@ jobs:
 
       - name: Tailscale
         if: steps.check_node.outputs.deploy == 'true'
-        uses: tailscale/github-action@e274181ee44bc6e5c0e2c657a5a23cd2b4ef2c48 # v4.1.2
+        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # v4.1.2
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
