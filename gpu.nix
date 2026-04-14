@@ -52,6 +52,16 @@
           value = 3;
         };
       };
+      # Disable vc4-kms-v3d overlay — the custom GPU kernel (buildLinux +
+      # bcm2712_defconfig) does not build RPi-specific DT overlays from
+      # arch/arm/boot/dts/overlays/. The RPi5 EEPROM firmware will fail at
+      # boot if config.txt references an overlay file that doesn't exist on
+      # the firmware partition. Node4 uses the AMD eGPU, not the VC4 GPU.
+      dt-overlays = {
+        vc4-kms-v3d = {
+          enable = false;
+        };
+      };
     };
   };
 
