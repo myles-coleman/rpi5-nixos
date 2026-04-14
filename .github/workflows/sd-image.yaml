@@ -1,0 +1,103 @@
+name: Build SD Card Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      nodes:
+        description: 'Nodes to build images for (comma-separated or "all")'
+        required: true
+        default: 'all'
+
+jobs:
+  build-image:
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      matrix:
+        node: [0, 1, 2, 3, 4]
+      fail-fast: false
+
+    steps:
+      - name: Check if node image should be built
+        id: check
+        run: |
+          NODES_INPUT="${{ github.event.inputs.nodes }}"
+          CURRENT_NODE="${{ matrix.node }}"
+
+          if [ "$NODES_INPUT" = "all" ]; then
+            echo "build=true" >> $GITHUB_OUTPUT
+          elif echo "$NODES_INPUT" | grep -qw "$CURRENT_NODE"; then
+            echo "build=true" >> $GITHUB_OUTPUT
+          else
+            echo "build=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Free disk space
+        if: steps.check.outputs.build == 'true'
+        run: |
+          # SD images are large; free up runner disk space
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
+          df -h /
+
+      - name: Checkout
+        if: steps.check.outputs.build == 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Nix
+        if: steps.check.outputs.build == 'true'
+        uses: cachix/install-nix-action@96951a368ba55167b55f1c916f7d416bac6505fe # v31.10.3
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            extra-substituters = https://nixos-raspberrypi.cachix.org https://rpi5-k3s.cachix.org
+            extra-trusted-public-keys = nixos-raspberrypi.cachix.org-1:4iMO9LXa8BqhU+Rpg6LQKiGa2lsNh/j2oiYLNOQ5sPI= rpi5-k3s.cachix.org-1:SH8ZlBgEj/jr0Facr2dnlXOyH7vzUe5W5YYQn70L7KA=
+
+      - name: Setup Cachix
+        if: steps.check.outputs.build == 'true'
+        uses: cachix/cachix-action@1eb2ef646ac0255473d23a5907ad7b04ce94065c # v17
+        with:
+          name: rpi5-k3s
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      - name: Setup K3s Token
+        if: steps.check.outputs.build == 'true'
+        run: |
+          echo "${{ secrets.K3S_TOKEN }}" > token
+          git add -f token
+
+      - name: Build SD image for node${{ matrix.node }}
+        if: steps.check.outputs.build == 'true'
+        run: |
+          nix build \
+            .#nixosConfigurations.node${{ matrix.node }}.config.system.build.sdImage \
+            --no-link --print-out-paths -L 2>&1 | tee /tmp/build-output.txt
+
+          # Extract the output path and find the image file
+          OUT_PATH=$(tail -1 /tmp/build-output.txt)
+          IMAGE=$(find "$OUT_PATH" -name '*.img*' -type f | head -1)
+
+          if [ -z "$IMAGE" ]; then
+            echo "ERROR: No image file found in $OUT_PATH"
+            ls -la "$OUT_PATH"/
+            exit 1
+          fi
+
+          echo "IMAGE_PATH=$IMAGE" >> $GITHUB_ENV
+          echo "IMAGE_NAME=$(basename "$IMAGE")" >> $GITHUB_ENV
+          echo "Found image: $IMAGE ($(du -h "$IMAGE" | cut -f1))"
+
+      - name: Compress image
+        if: steps.check.outputs.build == 'true'
+        run: |
+          # zstd compress the image for faster upload/download
+          zstd -T0 -10 "$IMAGE_PATH" -o "/tmp/node${{ matrix.node }}-sd.img.zst"
+          echo "COMPRESSED_PATH=/tmp/node${{ matrix.node }}-sd.img.zst" >> $GITHUB_ENV
+          echo "Compressed size: $(du -h /tmp/node${{ matrix.node }}-sd.img.zst | cut -f1)"
+
+      - name: Upload SD image artifact
+        if: steps.check.outputs.build == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: node${{ matrix.node }}-sd-image
+          path: ${{ env.COMPRESSED_PATH }}
+          retention-days: 30
+          compression-level: 0 # already zstd compressed
