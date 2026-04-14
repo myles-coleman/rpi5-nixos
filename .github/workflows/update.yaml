@@ -76,10 +76,12 @@ jobs:
           name: rpi5-k3s
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
-      - name: Setup K3s Token
+      - name: Create placeholder K3s token
         if: steps.check_node.outputs.build == 'true'
         run: |
-          echo "${{ secrets.K3S_TOKEN }}" > token
+          # Token is injected at deploy time via SSH, not at build time.
+          # A placeholder is needed so k3s-token-secrets.nix evaluates without error.
+          echo "placeholder" > token
           git add -f token
 
       - name: Build node${{ matrix.node }}
@@ -174,11 +176,11 @@ jobs:
           echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf > /dev/null
           echo "nameserver 8.8.4.4" | sudo tee -a /etc/resolv.conf > /dev/null
 
-      - name: Setup K3s Token
+      - name: Inject K3s token on node
         if: steps.check_node.outputs.deploy == 'true'
         run: |
-          echo "${{ secrets.K3S_TOKEN }}" > token
-          git add -f token
+          echo "Injecting K3s token on node${{ matrix.node }}..."
+          ssh pi@${{ steps.check_node.outputs.node_ip }} "sudo mkdir -p /etc/rancher/k3s && echo '${{ secrets.K3S_TOKEN }}' | sudo tee /etc/rancher/k3s/token > /dev/null && sudo chmod 600 /etc/rancher/k3s/token"
 
       - name: Deploy to node${{ matrix.node }}
         if: steps.check_node.outputs.deploy == 'true'

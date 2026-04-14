@@ -58,10 +58,12 @@ jobs:
           name: rpi5-k3s
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
-      - name: Setup K3s Token
+      - name: Create placeholder K3s token
         if: steps.check.outputs.build == 'true'
         run: |
-          echo "${{ secrets.K3S_TOKEN }}" > token
+          # Token is injected at deploy time via SSH, not at build time.
+          # A placeholder is needed so k3s-token-secrets.nix evaluates without error.
+          echo "placeholder" > token
           git add -f token
 
       - name: Build SD image for node${{ matrix.node }}

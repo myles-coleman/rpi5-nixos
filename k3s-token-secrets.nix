@@ -1,14 +1,13 @@
 { config, pkgs, lib, ... }:
 
-let
-  k3sTokenPath = ./token;
-  k3sToken = if builtins.pathExists k3sTokenPath
-    then lib.removeSuffix "\n" (builtins.readFile k3sTokenPath)
-    else "";
-in
 {
-  environment.etc."rancher/k3s/token" = lib.mkIf (k3sToken != "") {
-    text = k3sToken;
-    mode = "0600";
-  };
+  # The K3s token is injected at deploy time (via SSH) to avoid embedding
+  # secrets in the Nix store, Cachix cache, or SD card images.
+  # The deploy workflow writes the token to /etc/rancher/k3s/token.
+  # See: .github/workflows/update.yaml (deploy job)
+
+  # Ensure the directory exists with restrictive permissions
+  systemd.tmpfiles.rules = [
+    "d /etc/rancher/k3s 0700 root root -"
+  ];
 }
