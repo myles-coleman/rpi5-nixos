@@ -23,6 +23,8 @@ jobs:
   # Job 1: Build — native aarch64, populate Cachix cache
   # ---------------------------------------------------------------------------
   build:
+    # Prevent forks from running expensive aarch64 builds or accessing secrets
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
     runs-on: ubuntu-24.04-arm
     strategy:
       matrix:
@@ -74,10 +76,10 @@ jobs:
           name: rpi5-k3s
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
-      - name: Create placeholder K3s token
+      - name: Setup K3s Token
         if: steps.check_node.outputs.build == 'true'
         run: |
-          echo "placeholder" > token
+          echo "${{ secrets.K3S_TOKEN }}" > token
           git add -f token
 
       - name: Build node${{ matrix.node }}
