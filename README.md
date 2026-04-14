@@ -63,16 +63,30 @@ nixos-anywhere --flake .#node1 root@nixos-installer.local
 scp pi@node0.local:~/.kube/config ~/.kube/config
 ```
 
+### 5. Deploy GPU Agent (node4)
+
+node4 boots from SD card (no NVMe SSD). Build and flash the image directly:
+
+```bash
+# Build the SD image
+nix --extra-experimental-features 'nix-command flakes' build .#node4
+
+# Flash to SD card (replace /dev/sdX)
+zstd -d ./result/sd-image/*.img.zst -c | sudo dd of=/dev/sdX bs=4M status=progress oflag=sync
+```
+
+Insert the SD card into the Pi and boot. The partition will auto-expand on first boot.
+
 ## Updates
 
 ### Update single node
 ```bash
-nixos-rebuild switch --flake .#node1 --target-host pi@node1.local --use-remote-sudo --build-host pi@node1.local
+NIX_SSHOPTS="-i ../gha-key" nixos-rebuild switch --flake .#node1 --target-host pi@node1.local --use-remote-sudo --build-host pi@node1.local
 ```
 
 ### Update all nodes
 ```bash
-for i in {0..3}; do
+for i in {0..4}; do
   nixos-rebuild switch --flake .#node$i --target-host pi@node$i.local --use-remote-sudo --build-host pi@node$i.local
 done
 ```

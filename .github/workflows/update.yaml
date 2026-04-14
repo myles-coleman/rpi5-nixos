@@ -1,70 +1,151 @@
-name: Update NixOS Nodes
+name: Build & Deploy NixOS Nodes
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+    paths-ignore: [README.md]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
     inputs:
       nodes:
-        description: 'Nodes to update (comma-separated, e.g., "0,1,2,3" or "all")'
+        description: 'Nodes to build/deploy (comma-separated or "all")'
         required: true
         default: 'all'
+      deploy:
+        description: 'Deploy to physical nodes after build'
+        required: true
+        default: false
+        type: boolean
 
 jobs:
-  update-nodes:
-    runs-on: ubuntu-latest
+  # ---------------------------------------------------------------------------
+  # Job 1: Build — native aarch64, populate Cachix cache
+  # ---------------------------------------------------------------------------
+  build:
+    # Prevent forks from running expensive aarch64 builds or accessing secrets
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04-arm
     strategy:
       matrix:
-        node: [0, 1, 2, 3]
+        node: [0, 1, 2, 3, 4]
       fail-fast: false
-      max-parallel: 1
-    
+
     steps:
-      - name: Check if node should be updated
+      - name: Check if node should be built
         id: check_node
         run: |
           NODES_INPUT="${{ github.event.inputs.nodes || 'all' }}"
           CURRENT_NODE="${{ matrix.node }}"
-          
-          # Map node number to IP address
+
+          # Map node number to IP address (used by deploy job)
           case $CURRENT_NODE in
             0) NODE_IP="10.0.0.140" ;;
             1) NODE_IP="10.0.0.141" ;;
             2) NODE_IP="10.0.0.142" ;;
             3) NODE_IP="10.0.0.143" ;;
+            4) NODE_IP="10.0.0.144" ;;
           esac
           echo "node_ip=$NODE_IP" >> $GITHUB_OUTPUT
-          
+
           if [ "$NODES_INPUT" = "all" ]; then
-            echo "update=true" >> $GITHUB_OUTPUT
-          elif echo "$NODES_INPUT" | grep -q "$CURRENT_NODE"; then
-            echo "update=true" >> $GITHUB_OUTPUT
+            echo "build=true" >> $GITHUB_OUTPUT
+          elif echo "$NODES_INPUT" | grep -qw "$CURRENT_NODE"; then
+            echo "build=true" >> $GITHUB_OUTPUT
           else
-            echo "update=false" >> $GITHUB_OUTPUT
+            echo "build=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Checkout Repository
-        if: steps.check_node.outputs.update == 'true'
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Checkout
+        if: steps.check_node.outputs.build == 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install Nix
-        if: steps.check_node.outputs.update == 'true'
-        uses: cachix/install-nix-action@4e002c8ec80594ecd40e759629461e26c8abed15 # v31.9.0
+        if: steps.check_node.outputs.build == 'true'
+        uses: cachix/install-nix-action@96951a368ba55167b55f1c916f7d416bac6505fe # v31.10.3
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
-            extra-substituters = https://nixos-raspberrypi.cachix.org
-            extra-trusted-public-keys = nixos-raspberrypi.cachix.org-1:4iMO9LXa8BqhU+Rpg6LQKiGa2lsNh/j2oiYLNOQ5sPI=
+            extra-substituters = https://nixos-raspberrypi.cachix.org https://rpi5-k3s.cachix.org
+            extra-trusted-public-keys = nixos-raspberrypi.cachix.org-1:4iMO9LXa8BqhU+Rpg6LQKiGa2lsNh/j2oiYLNOQ5sPI= rpi5-k3s.cachix.org-1:SH8ZlBgEj/jr0Facr2dnlXOyH7vzUe5W5YYQn70L7KA=
+
+      - name: Setup Cachix
+        if: steps.check_node.outputs.build == 'true'
+        uses: cachix/cachix-action@1eb2ef646ac0255473d23a5907ad7b04ce94065c # v17
+        with:
+          name: rpi5-k3s
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      - name: Setup K3s Token
+        if: steps.check_node.outputs.build == 'true'
+        run: |
+          echo "${{ secrets.K3S_TOKEN }}" > token
+          git add -f token
+
+      - name: Build node${{ matrix.node }}
+        if: steps.check_node.outputs.build == 'true'
+        run: |
+          nix build \
+            .#nixosConfigurations.node${{ matrix.node }}.config.system.build.toplevel \
+            --no-link --print-out-paths -L
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Deploy — only on dispatch with deploy: true
+  # ---------------------------------------------------------------------------
+  deploy:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [0, 1, 2, 3, 4]
+      fail-fast: false
+      max-parallel: 1
+
+    steps:
+      - name: Check if node should be deployed
+        id: check_node
+        run: |
+          NODES_INPUT="${{ github.event.inputs.nodes || 'all' }}"
+          CURRENT_NODE="${{ matrix.node }}"
+
+          case $CURRENT_NODE in
+            0) NODE_IP="10.0.0.140" ;;
+            1) NODE_IP="10.0.0.141" ;;
+            2) NODE_IP="10.0.0.142" ;;
+            3) NODE_IP="10.0.0.143" ;;
+            4) NODE_IP="10.0.0.144" ;;
+          esac
+          echo "node_ip=$NODE_IP" >> $GITHUB_OUTPUT
+
+          if [ "$NODES_INPUT" = "all" ]; then
+            echo "deploy=true" >> $GITHUB_OUTPUT
+          elif echo "$NODES_INPUT" | grep -qw "$CURRENT_NODE"; then
+            echo "deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout
+        if: steps.check_node.outputs.deploy == 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Nix
+        if: steps.check_node.outputs.deploy == 'true'
+        uses: cachix/install-nix-action@96951a368ba55167b55f1c916f7d416bac6505fe # v31.10.3
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            extra-substituters = https://nixos-raspberrypi.cachix.org https://rpi5-k3s.cachix.org
+            extra-trusted-public-keys = nixos-raspberrypi.cachix.org-1:4iMO9LXa8BqhU+Rpg6LQKiGa2lsNh/j2oiYLNOQ5sPI= rpi5-k3s.cachix.org-1:SH8ZlBgEj/jr0Facr2dnlXOyH7vzUe5W5YYQn70L7KA=
 
       - name: Setup SSH key
-        if: steps.check_node.outputs.update == 'true'
+        if: steps.check_node.outputs.deploy == 'true'
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          
-          # Configure SSH to use only our key and skip host key checking
+
           cat > ~/.ssh/config <<EOF
           Host *
             IdentityFile ~/.ssh/id_ed25519
@@ -76,28 +157,31 @@ jobs:
           chmod 600 ~/.ssh/config
 
       - name: Tailscale
-        uses: tailscale/github-action@53acf823325fe9ca47f4cdaa951f90b4b0de5bb9 # v4.1.1
+        if: steps.check_node.outputs.deploy == 'true'
+        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # v4.1.2
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
       - name: Accept Tailscale routes
+        if: steps.check_node.outputs.deploy == 'true'
         run: sudo tailscale set --accept-routes
 
       - name: Set Nameservers
+        if: steps.check_node.outputs.deploy == 'true'
         run: |
           echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf > /dev/null
           echo "nameserver 8.8.4.4" | sudo tee -a /etc/resolv.conf > /dev/null
 
       - name: Setup K3s Token
-        if: steps.check_node.outputs.update == 'true'
+        if: steps.check_node.outputs.deploy == 'true'
         run: |
           echo "${{ secrets.K3S_TOKEN }}" > token
           git add -f token
 
-      - name: Deploy to node
-        if: steps.check_node.outputs.update == 'true'
+      - name: Deploy to node${{ matrix.node }}
+        if: steps.check_node.outputs.deploy == 'true'
         run: |
           echo "Deploying to node${{ matrix.node }} (${{ steps.check_node.outputs.node_ip }})..."
           nix run nixpkgs#nixos-rebuild -- switch \
@@ -107,7 +191,7 @@ jobs:
             --build-host pi@${{ steps.check_node.outputs.node_ip }}
 
       - name: Verify node health
-        if: steps.check_node.outputs.update == 'true'
+        if: steps.check_node.outputs.deploy == 'true'
         run: |
           echo "Verifying node${{ matrix.node }} health..."
           ssh pi@${{ steps.check_node.outputs.node_ip }} "systemctl is-active k3s || systemctl is-active k3s-agent"

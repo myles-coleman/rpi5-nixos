@@ -119,7 +119,25 @@
       "inputs": {
         "disko": "disko",
         "nixos-raspberrypi": "nixos-raspberrypi",
-        "nixpkgs": "nixpkgs_2"
+        "nixpkgs": "nixpkgs_2",
+        "rpi-linux-gpu": "rpi-linux-gpu"
+      }
+    },
+    "rpi-linux-gpu": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1759353156,
+        "narHash": "sha256-p0u82w93JcjMHWU6DW3Nwa3DVx0n1+Syj0flyQP0CWA=",
+        "owner": "geerlingguy",
+        "repo": "linux",
+        "rev": "93f7c26f98535659c899ad4b2270e0b70a569d6f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "geerlingguy",
+        "ref": "rpi-6.17.y-gpu",
+        "repo": "linux",
+        "type": "github"
       }
     }
   },
