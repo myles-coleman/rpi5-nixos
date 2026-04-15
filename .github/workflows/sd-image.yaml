@@ -74,8 +74,14 @@ jobs:
             --no-link --print-out-paths -L 2>&1 | tee /tmp/build-output.txt
 
           # Extract the output path and find the image file
+          # The NixOS sd-image module produces a .img.zst (already zstd compressed)
           OUT_PATH=$(tail -1 /tmp/build-output.txt)
-          IMAGE=$(find "$OUT_PATH" -name '*.img*' -type f | head -1)
+          IMAGE=$(find "$OUT_PATH" -name '*.img.zst' -type f | head -1)
+
+          # Fall back to uncompressed .img if compressImage is disabled
+          if [ -z "$IMAGE" ]; then
+            IMAGE=$(find "$OUT_PATH" -name '*.img' -type f | head -1)
+          fi
 
           if [ -z "$IMAGE" ]; then
             echo "ERROR: No image file found in $OUT_PATH"
@@ -83,23 +89,24 @@ jobs:
             exit 1
           fi
 
-          echo "IMAGE_PATH=$IMAGE" >> $GITHUB_ENV
-          echo "IMAGE_NAME=$(basename "$IMAGE")" >> $GITHUB_ENV
-          echo "Found image: $IMAGE ($(du -h "$IMAGE" | cut -f1))"
+          # Copy to /tmp with a clean name (nix store is read-only)
+          DEST="/tmp/node${{ matrix.node }}-sd.img.zst"
+          if [[ "$IMAGE" == *.img.zst ]]; then
+            # Already compressed by NixOS sd-image module — use directly
+            cp "$IMAGE" "$DEST"
+          else
+            # Uncompressed .img — compress it
+            zstd -T0 -10 "$IMAGE" -o "$DEST"
+          fi
 
-      - name: Compress image
-        if: steps.check.outputs.build == 'true'
-        run: |
-          # zstd compress the image for faster upload/download
-          zstd -T0 -10 "$IMAGE_PATH" -o "/tmp/node${{ matrix.node }}-sd.img.zst"
-          echo "COMPRESSED_PATH=/tmp/node${{ matrix.node }}-sd.img.zst" >> $GITHUB_ENV
-          echo "Compressed size: $(du -h /tmp/node${{ matrix.node }}-sd.img.zst | cut -f1)"
+          echo "ARTIFACT_PATH=$DEST" >> $GITHUB_ENV
+          echo "Image size: $(du -h "$DEST" | cut -f1)"
 
       - name: Upload SD image artifact
         if: steps.check.outputs.build == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: node${{ matrix.node }}-sd-image
-          path: ${{ env.COMPRESSED_PATH }}
+          path: ${{ env.ARTIFACT_PATH }}
           retention-days: 30
           compression-level: 0 # already zstd compressed
