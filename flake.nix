@@ -132,7 +132,7 @@
             # Disable simpledrm — crashes with a level 1 translation fault on
             # BCM2712 with 4K pages when mapping the firmware framebuffer.
             # Node4 uses the AMD eGPU for display, not the firmware FB.
-            DRM_SIMPLEDRM = no;
+            DRM_SIMPLEDRM = lib.mkForce no;
           };
           features = {
             efiBootStub = false;
