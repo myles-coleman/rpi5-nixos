@@ -129,8 +129,12 @@
             BCACHEFS_FS = no;
             # gpio-pwm.c has void/int return type mismatch in 6.17
             GPIO_PWM = no;
-            # simpledrm is disabled at runtime via initcall_blacklist in gpu.nix
-            # (crashes with translation fault on BCM2712 + 4K pages).
+            # Disable simpledrm and simplefb — simpledrm crashes with a level 1
+            # translation fault on BCM2712 + 4K pages when mapping the firmware
+            # framebuffer (16K-aligned). Node4 uses amdgpu for display.
+            DRM_SIMPLEDRM = lib.mkForce no;
+            FB_SIMPLE = lib.mkForce no;
+            SYSFB_SIMPLEFB = lib.mkForce no;
           };
           features = {
             efiBootStub = false;
@@ -151,6 +155,10 @@
             sed -i $buildRoot/.config -e 's/^CONFIG_BCACHEFS_FS=.*/# CONFIG_BCACHEFS_FS is not set/'
             # gpio-pwm.c has void/int return type mismatch in 6.17
             sed -i $buildRoot/.config -e 's/^CONFIG_GPIO_PWM=.*/# CONFIG_GPIO_PWM is not set/'
+            # Force-disable simpledrm/simplefb (translation fault on BCM2712 + 4K pages)
+            sed -i $buildRoot/.config -e 's/^CONFIG_DRM_SIMPLEDRM=.*/# CONFIG_DRM_SIMPLEDRM is not set/'
+            sed -i $buildRoot/.config -e 's/^CONFIG_FB_SIMPLE=.*/# CONFIG_FB_SIMPLE is not set/'
+            sed -i $buildRoot/.config -e 's/^CONFIG_SYSFB_SIMPLEFB=.*/# CONFIG_SYSFB_SIMPLEFB is not set/'
           '';
 
           # Copy overlays README to match raspberrypifw layout.

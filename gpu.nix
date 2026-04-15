@@ -37,13 +37,8 @@
 
   # Kernel parameters for AMD GPU on ARM64 PCIe
   # - pci=realloc: Reallocate PCI resources to fix "resources unassigned" errors
-  # - initcall_blacklist=simpledrm_platform_driver_init: Prevent simpledrm from
-  #   probing. It crashes with a level 1 translation fault on BCM2712 with 4K
-  #   pages due to firmware framebuffer memory being mapped with 16K alignment.
-  #   Node4 uses the AMD eGPU (amdgpu) for display, not the firmware FB.
   boot.kernelParams = [
     "pci=realloc"
-    "initcall_blacklist=simpledrm_platform_driver_init"
   ];
 
   # --- PCIe configuration ---
