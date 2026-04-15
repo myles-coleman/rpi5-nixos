@@ -150,6 +150,16 @@
             # gpio-pwm.c has void/int return type mismatch in 6.17
             sed -i $buildRoot/.config -e 's/^CONFIG_GPIO_PWM=.*/# CONFIG_GPIO_PWM is not set/'
           '';
+
+          # Copy overlays README to match raspberrypifw layout.
+          # The .dtbo overlay files (including bcm2712d0.dtbo required for D0
+          # silicon) are built automatically by 'make dtbs' since the RPi 6.17
+          # kernel's arch/arm64/boot/dts/Makefile includes 'subdir-y += overlays'.
+          postFixup = (old.postFixup or "") + ''
+            if [ -d "$srcs/arch/arm64/boot/dts/overlays" ]; then
+              cp "$srcs/arch/arm64/boot/dts/overlays/README" "$out/dtbs/overlays/" 2>/dev/null || true
+            fi
+          '';
         })));
       })
     ];
