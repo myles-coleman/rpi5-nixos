@@ -37,8 +37,13 @@
 
   # Kernel parameters for AMD GPU on ARM64 PCIe
   # - pci=realloc: Reallocate PCI resources to fix "resources unassigned" errors
+  # - amdgpu.runpm=0: Disable runtime power management. The GPU enters BACO
+  #   sleep when idle, but resume fails on RPi5 PCIe (VM flush and RLC autoload
+  #   timeouts), leaving the GPU in a hung state. Keeping the GPU always-on
+  #   avoids this. Increases idle power draw by ~15-30W.
   boot.kernelParams = [
     "pci=realloc"
+    "amdgpu.runpm=0"
   ];
 
   # --- PCIe configuration ---
