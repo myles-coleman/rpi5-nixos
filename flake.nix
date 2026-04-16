@@ -248,7 +248,7 @@
       specialArgs = inputs;
       modules = gpuBaseConfig ++ [
         ./k3s-agent.nix
-        ({...}: {
+        ({config, lib, ...}: {
           networking.hostName = "node4";
           networking.interfaces.end0.ipv4.addresses = [{
             address = "10.0.0.144";
@@ -256,6 +256,16 @@
           }];
           networking.defaultGateway = "10.0.0.1";
           networking.nameservers = [ "10.0.0.1" ];
+
+          # GPU node labels and taint for Kubernetes scheduling
+          services.k3s.extraFlags = lib.mkForce [
+            "--node-ip=${(builtins.elemAt config.networking.interfaces.end0.ipv4.addresses 0).address}"
+            "--node-external-ip=${(builtins.elemAt config.networking.interfaces.end0.ipv4.addresses 0).address}"
+            "--flannel-iface=end0"
+            "--node-label=gpu.node/type=amd-vulkan"
+            "--node-label=gpu.node/vram=12Gi"
+            "--node-taint=gpu=amd:NoSchedule"
+          ];
         })
       ];
     };

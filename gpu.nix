@@ -80,6 +80,12 @@
   # Reference: https://wiki.nixos.org/wiki/AMD_GPU
   hardware.graphics.enable = true;
 
+  # --- Model storage ---
+  # Directory for llama.cpp model files, mounted as hostPath in Kubernetes
+  systemd.tmpfiles.rules = [
+    "d /var/lib/llama-models 0755 root root -"
+  ];
+
   # --- Userspace packages ---
   environment.systemPackages = with pkgs; [
     # Vulkan SDK and tools
