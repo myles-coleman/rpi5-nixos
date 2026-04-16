@@ -35,7 +35,6 @@ NixOS configurations for a 5-node k3s Kubernetes cluster running on Raspberry Pi
 
 ## Conventions
 
-- Formatter is `alejandra`
 - Commit style: conventional commits (semantic-release via `.releaserc.json`)
 - Two Nix substituters configured (cachix) for pre-built binary caches
 - Node4 uses SD card (no NVMe) since PCIe is occupied by the eGPU
