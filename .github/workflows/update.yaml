@@ -95,7 +95,7 @@ jobs:
   # Job 2: Deploy — only on dispatch with deploy: true
   # ---------------------------------------------------------------------------
   deploy:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true')
     needs: build
     runs-on: ubuntu-latest
     strategy:
