@@ -39,6 +39,15 @@ NixOS configurations for a 5-node k3s Kubernetes cluster running on Raspberry Pi
 - Two Nix substituters configured (cachix) for pre-built binary caches
 - Node4 uses SD card (no NVMe) since PCIe is occupied by the eGPU
 
+## Node Health & Debugging (`node-health.nix`)
+
+All nodes import `node-health.nix` which provides:
+
+- **Persistent journald** — Logs survive reboots (200M cap at `/var/log/journal`). Check previous boot: `journalctl --boot=-1`
+- **Hardware watchdog** — Uses `bcm2835_wdt`. systemd pets it every 15s; if systemd hangs, the hardware reboots the node after 60s
+- **Network watchdog** — `network-watchdog.service` pings the default gateway every 30s, logs full interface state on failure (`ip addr`, `ip link`, `ip route` for `end0`), and bounces the interface after 5 consecutive failures (2.5 min). Check logs: `journalctl -u network-watchdog`
+- **zram swap** — Compressed in-memory swap (zstd, 25% of RAM). Avoids SD card wear and is faster than NVMe swap. Check status: `zramctl`
+
 ## Guardrails
 
 - Never change k3s token secrets without coordinating across all nodes — mismatched tokens break cluster joins
