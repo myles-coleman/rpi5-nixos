@@ -1,0 +1,226 @@
+name: NixOS Config Diff
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore: [README.md]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  diff:
+    # Prevent forks from running expensive aarch64 builds or accessing secrets
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@96951a368ba55167b55f1c916f7d416bac6505fe # v31.10.3
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            extra-substituters = https://nixos-raspberrypi.cachix.org https://rpi5-k3s.cachix.org
+            extra-trusted-public-keys = nixos-raspberrypi.cachix.org-1:4iMO9LXa8BqhU+Rpg6LQKiGa2lsNh/j2oiYLNOQ5sPI= rpi5-k3s.cachix.org-1:SH8ZlBgEj/jr0Facr2dnlXOyH7vzUe5W5YYQn70L7KA=
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@1eb2ef646ac0255473d23a5907ad7b04ce94065c # v17
+        with:
+          name: rpi5-k3s
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      - name: Create placeholder K3s token
+        run: |
+          echo "placeholder" > token
+          git add -f token
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          cat > ~/.ssh/config <<EOF
+          Host *
+            IdentityFile ~/.ssh/id_ed25519
+            IdentitiesOnly yes
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ControlMaster no
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Tailscale
+        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # v4.1.2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Accept Tailscale routes
+        run: sudo tailscale set --accept-routes
+
+      - name: Set Nameservers
+        run: |
+          echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf > /dev/null
+          echo "nameserver 8.8.4.4" | sudo tee -a /etc/resolv.conf > /dev/null
+
+      - name: Build and diff all nodes
+        id: diff
+        shell: bash
+        run: |
+          set +e
+
+          declare -A NODE_IPS=([0]=10.0.0.140 [1]=10.0.0.141 [2]=10.0.0.142 [3]=10.0.0.143 [4]=10.0.0.144)
+          DIFF_DIR=$(mktemp -d)
+
+          for node in 0 1 2 3 4; do
+            IP="${NODE_IPS[$node]}"
+            echo "::group::node${node} (${IP})"
+
+            # Build new config
+            echo "Building node${node}..."
+            if ! NEW_PATH=$(nix build \
+              ".#nixosConfigurations.node${node}.config.system.build.toplevel" \
+              --print-out-paths --no-link -L); then
+              echo "build-failed" > "${DIFF_DIR}/status-${node}"
+              echo "::endgroup::"
+              continue
+            fi
+
+            if [[ ! "$NEW_PATH" =~ ^/nix/store/ ]]; then
+              echo "build-failed" > "${DIFF_DIR}/status-${node}"
+              echo "::endgroup::"
+              continue
+            fi
+
+            # Get new closure package list (local store)
+            nix path-info -r "$NEW_PATH" \
+              | sed 's|^/nix/store/[a-z0-9]\{32\}-||' \
+              | sort -u > "${DIFF_DIR}/new-${node}.txt"
+
+            # Get current closure from remote node
+            echo "Fetching current system closure from node${node}..."
+            if ! ssh -o ConnectTimeout=15 -o BatchMode=yes "pi@${IP}" \
+              "nix --extra-experimental-features nix-command path-info -r /run/current-system" 2>/dev/null \
+              | sed 's|^/nix/store/[a-z0-9]\{32\}-||' \
+              | sort -u > "${DIFF_DIR}/current-${node}.txt"; then
+              echo "unreachable" > "${DIFF_DIR}/status-${node}"
+              echo "::endgroup::"
+              continue
+            fi
+
+            if [ ! -s "${DIFF_DIR}/current-${node}.txt" ]; then
+              echo "unreachable" > "${DIFF_DIR}/status-${node}"
+              echo "::endgroup::"
+              continue
+            fi
+
+            # Compute diff
+            REMOVED=$(comm -23 "${DIFF_DIR}/current-${node}.txt" "${DIFF_DIR}/new-${node}.txt")
+            ADDED=$(comm -13 "${DIFF_DIR}/current-${node}.txt" "${DIFF_DIR}/new-${node}.txt")
+
+            if [ -z "$REMOVED" ] && [ -z "$ADDED" ]; then
+              echo "no-changes" > "${DIFF_DIR}/status-${node}"
+            else
+              echo "changed" > "${DIFF_DIR}/status-${node}"
+              {
+                [ -n "$REMOVED" ] && echo "$REMOVED" | sed 's/^/- /'
+                [ -n "$ADDED" ] && echo "$ADDED" | sed 's/^/+ /'
+              } > "${DIFF_DIR}/diff-${node}.txt"
+            fi
+
+            echo "::endgroup::"
+          done
+
+          # --- Format PR comment ---
+          COMMENT_FILE="${DIFF_DIR}/comment.md"
+          {
+            echo '<!-- nixos-diff -->'
+            echo '## NixOS Config Diff'
+            echo ''
+
+            declare -A FIRST_NODE_FOR_HASH
+
+            for node in 0 1 2 3 4; do
+              IP="${NODE_IPS[$node]}"
+              STATUS=$(cat "${DIFF_DIR}/status-${node}" 2>/dev/null || echo "unknown")
+
+              case "$STATUS" in
+                changed)
+                  HASH=$(md5sum "${DIFF_DIR}/diff-${node}.txt" | cut -d' ' -f1)
+
+                  if [ -z "${FIRST_NODE_FOR_HASH[$HASH]:-}" ]; then
+                    # First node with this diff — show full output
+                    FIRST_NODE_FOR_HASH[$HASH]=$node
+                    ADDED_COUNT=$(grep -c '^+ ' "${DIFF_DIR}/diff-${node}.txt" || true)
+                    REMOVED_COUNT=$(grep -c '^- ' "${DIFF_DIR}/diff-${node}.txt" || true)
+
+                    echo "### node${node} (${IP}) — ${ADDED_COUNT} added, ${REMOVED_COUNT} removed"
+                    echo ''
+                    echo '```diff'
+
+                    LINES=$(wc -l < "${DIFF_DIR}/diff-${node}.txt")
+                    if [ "$LINES" -gt 80 ]; then
+                      head -80 "${DIFF_DIR}/diff-${node}.txt"
+                      echo "... and $((LINES - 80)) more packages"
+                    else
+                      cat "${DIFF_DIR}/diff-${node}.txt"
+                    fi
+
+                    echo '```'
+                    echo ''
+                  else
+                    # Identical diff already shown — reference the first node
+                    FIRST=${FIRST_NODE_FOR_HASH[$HASH]}
+                    echo "### node${node} (${IP}) — same as node${FIRST}"
+                    echo ''
+                  fi
+                  ;;
+                no-changes)
+                  echo "### node${node} (${IP}) — no changes"
+                  echo ''
+                  ;;
+                unreachable)
+                  echo "### node${node} (${IP}) — unreachable, skipped"
+                  echo ''
+                  ;;
+                build-failed)
+                  echo "### node${node} (${IP}) — build failed"
+                  echo ''
+                  ;;
+              esac
+            done
+          } > "$COMMENT_FILE"
+
+          echo "comment_file=${COMMENT_FILE}" >> "$GITHUB_OUTPUT"
+
+      - name: Post PR comment
+        if: always() && steps.diff.outputs.comment_file != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          COMMENT_FILE="${{ steps.diff.outputs.comment_file }}"
+
+          if [ ! -f "$COMMENT_FILE" ]; then
+            echo "No comment file found, skipping"
+            exit 0
+          fi
+
+          # Find existing diff comment to update in place
+          EXISTING_ID=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --paginate --jq '.[] | select(.body | startswith("<!-- nixos-diff -->")) | .id' \
+            | head -1)
+
+          if [ -n "$EXISTING_ID" ]; then
+            jq -n --rawfile body "$COMMENT_FILE" '{"body": $body}' | \
+              gh api "repos/${{ github.repository }}/issues/comments/${EXISTING_ID}" \
+                -X PATCH --input -
+          else
+            gh pr comment "$PR_NUMBER" --body-file "$COMMENT_FILE"
+          fi
