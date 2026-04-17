@@ -58,11 +58,15 @@
           echo "--- ip route ---" >&2
           ip route >&2 || true
           # After 5 consecutive failures (2.5 min), try bouncing the interface
+          # and re-adding the default route (link bounce drops static routes)
           if [ "$consecutive_failures" -ge 5 ]; then
             echo "5 consecutive failures, attempting interface restart" >&2
             ip link set end0 down 2>/dev/null || true
             sleep 2
             ip link set end0 up 2>/dev/null || true
+            sleep 2
+            echo "Re-adding default route via $gateway" >&2
+            ip route replace default via "$gateway" dev end0 proto static 2>/dev/null || true
             consecutive_failures=0
           fi
         else
