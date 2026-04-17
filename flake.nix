@@ -291,7 +291,7 @@
               }
             ];
             networking.defaultGateway = "10.0.0.1";
-            networking.nameservers = ["10.0.0.1"];
+            networking.nameservers = ["1.1.1.1"];
 
             # GPU node labels and taint for Kubernetes scheduling
             services.k3s.extraFlags = lib.mkForce [

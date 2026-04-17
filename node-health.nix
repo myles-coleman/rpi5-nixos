@@ -5,7 +5,21 @@
 #   - Hardware watchdog (auto-reboot on kernel hang via bcm2835_wdt)
 #   - Network connectivity watchdog (logs failures with interface state)
 #   - zram swap (compressed in-memory swap to handle memory pressure)
-{pkgs, ...}: {
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}: let
+  # Resolve the gateway address from NixOS config so the watchdog always
+  # knows the correct gateway, even if the route has been removed from the
+  # routing table by flannel or an interface bounce.
+  gw = config.networking.defaultGateway;
+  gatewayAddress =
+    if builtins.isString gw
+    then gw
+    else gw.address;
+in {
   # --- Persistent journal ---
   # Default NixOS journald uses volatile storage (tmpfs), so logs are lost on
   # reboot or crash. Persistent storage writes to /var/log/journal, letting us
@@ -27,6 +41,11 @@
   # --- Network connectivity watchdog ---
   # Pings the default gateway every 30s and logs failures with full interface
   # state. Gives us timestamps to correlate network drops with kernel/GPU errors.
+  #
+  # Uses the gateway address from NixOS config rather than parsing `ip route`,
+  # because flannel adds a `default dev flannel.1 scope link` route that has
+  # no `via` keyword — causing awk to pick up "flannel.1" as the "gateway"
+  # if the real static route has been removed.
   systemd.services.network-watchdog = {
     description = "Network connectivity watchdog";
     after = ["network-online.target"];
@@ -39,15 +58,17 @@
     };
     path = with pkgs; [iputils iproute2 coreutils gawk];
     script = ''
-      gateway=$(ip route show default | awk '/default/ {print $3; exit}')
-      if [ -z "$gateway" ]; then
-        echo "No default gateway found, waiting..." >&2
-        sleep 30
-        exit 1
-      fi
+      gateway="${gatewayAddress}"
       echo "Network watchdog started, monitoring gateway $gateway on end0"
       consecutive_failures=0
       while true; do
+        # Ensure the default route exists before pinging — flannel or an
+        # interface bounce can silently remove it.
+        if ! ip route show default | grep -q "via $gateway"; then
+          echo "Default route via $gateway missing, restoring" >&2
+          ip route replace default via "$gateway" dev end0 proto static 2>/dev/null || true
+        fi
+
         if ! ping -c 3 -W 5 "$gateway" >/dev/null 2>&1; then
           consecutive_failures=$((consecutive_failures + 1))
           echo "NETWORK UNREACHABLE (attempt $consecutive_failures) - gateway $gateway" >&2
@@ -64,7 +85,7 @@
             ip link set end0 down 2>/dev/null || true
             sleep 2
             ip link set end0 up 2>/dev/null || true
-            sleep 2
+            sleep 5
             echo "Re-adding default route via $gateway" >&2
             ip route replace default via "$gateway" dev end0 proto static 2>/dev/null || true
             consecutive_failures=0
