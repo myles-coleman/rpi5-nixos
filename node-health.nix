@@ -37,7 +37,7 @@
       Restart = "always";
       RestartSec = 10;
     };
-    path = with pkgs; [iputils iproute2 coreutils];
+    path = with pkgs; [iputils iproute2 coreutils gawk];
     script = ''
       gateway=$(ip route show default | awk '/default/ {print $3; exit}')
       if [ -z "$gateway" ]; then
