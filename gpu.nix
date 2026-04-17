@@ -19,10 +19,12 @@
 #   - https://www.jeffgeerling.com/blog/2025/using-amd-gpus-on-raspberry-pi-without-recompiling-linux
 #   - https://github.com/raspberrypi/linux/pull/7113
 #   - https://wiki.nixos.org/wiki/AMD_GPU
-
-{ config, pkgs, lib, ... }:
-
 {
+  config,
+  pkgs,
+  lib,
+  ...
+}: {
   # --- Kernel configuration ---
   # The GPU kernel (geerlingguy's rpi-6.17.y-gpu branch) already includes:
   # - TTM cache coherency patch for ARM64
@@ -33,7 +35,7 @@
   # DRM_AMDGPU and HSA_AMD are configured in flake.nix (gpuBaseConfig kernel build).
 
   # Load amdgpu module
-  boot.kernelModules = [ "amdgpu" ];
+  boot.kernelModules = ["amdgpu"];
 
   # Kernel parameters for AMD GPU on ARM64 PCIe
   # - pci=realloc: Reallocate PCI resources to fix "resources unassigned" errors
@@ -89,20 +91,20 @@
   # --- Userspace packages ---
   environment.systemPackages = with pkgs; [
     # Vulkan SDK and tools
-    vulkan-tools       # vulkaninfo
+    vulkan-tools # vulkaninfo
     vulkan-loader
     vulkan-headers
     vulkan-validation-layers
-    glslang            # GLSL to SPIR-V compiler (needed for llama.cpp Vulkan build)
+    glslang # GLSL to SPIR-V compiler (needed for llama.cpp Vulkan build)
 
     # GPU monitoring
-    nvtopPackages.amd  # GPU process monitor for AMD
+    nvtopPackages.amd # GPU process monitor for AMD
 
     # Mesa utilities
-    mesa-demos         # glxinfo, glxgears, etc.
+    mesa-demos # glxinfo, glxgears, etc.
 
     # VAAPI tools for hardware video transcoding verification
-    libva-utils        # vainfo
+    libva-utils # vainfo
 
     # Build tools for compiling GPU-accelerated software (e.g. llama.cpp)
     cmake

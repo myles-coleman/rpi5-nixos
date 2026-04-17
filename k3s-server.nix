@@ -1,6 +1,9 @@
-{ config, pkgs, lib, ... }:
-
 {
+  config,
+  pkgs,
+  lib,
+  ...
+}: {
   imports = [
     ./k3s-common.nix
     ./k3s-token-secrets.nix
@@ -119,11 +122,11 @@
       "--node-taint CriticalAddonsOnly=true:NoExecute"
     ];
   };
-  
+
   systemd.services.k3s-kubeconfig-copy = {
     description = "Copy k3s kubeconfig to user directory";
-    after = [ "k3s.service" ];
-    wantedBy = [ "multi-user.target" ];
+    after = ["k3s.service"];
+    wantedBy = ["multi-user.target"];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
@@ -138,9 +141,9 @@
 
   systemd.services.k3s-apply-manifests = {
     description = "Apply k3s manifests";
-    after = [ "k3s.service" ];
-    wants = [ "k3s.service" ];
-    wantedBy = [ "multi-user.target" ];
+    after = ["k3s.service"];
+    wants = ["k3s.service"];
+    wantedBy = ["multi-user.target"];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
@@ -153,7 +156,7 @@
         echo "Waiting for k3s to be ready..."
         sleep 5
       done
-      
+
       # Apply the kube-vip manifest
       ${pkgs.k3s}/bin/kubectl --kubeconfig=/etc/rancher/k3s/k3s.yaml apply -f /etc/rancher/k3s/server/manifests/kube-vip.yaml
     '';

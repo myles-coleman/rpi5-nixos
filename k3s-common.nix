@@ -1,8 +1,15 @@
-{ config, pkgs, lib, ... }:
-
 {
+  config,
+  pkgs,
+  lib,
+  ...
+}: {
+  imports = [
+    ./node-health.nix
+  ];
+
   services.k3s.package = pkgs.k3s_1_33;
-  
+
   environment.systemPackages = with pkgs; [
     k3s
     coreutils
@@ -49,6 +56,6 @@
     ln -sf ${pkgs.openiscsi}/bin/iscsiadm /usr/bin/iscsiadm
   '';
 
-  systemd.services.k3s.after = [ "network-online.target" ];
-  systemd.services.k3s.wants = [ "network-online.target" ];
+  systemd.services.k3s.after = ["network-online.target"];
+  systemd.services.k3s.wants = ["network-online.target"];
 }
