@@ -3,9 +3,16 @@ name: Build & Deploy NixOS Nodes
 on:
   push:
     branches: [main]
-    paths-ignore: [README.md]
+    paths:
+      - '*.nix'
+      - 'flake.lock'
+      - 'patches/**'
   pull_request:
     branches: [main]
+    paths:
+      - '*.nix'
+      - 'flake.lock'
+      - 'patches/**'
   workflow_dispatch:
     inputs:
       nodes:
@@ -102,7 +109,6 @@ jobs:
       matrix:
         node: [0, 1, 2, 3, 4]
       fail-fast: false
-      max-parallel: 1
 
     steps:
       - name: Check if node should be deployed
