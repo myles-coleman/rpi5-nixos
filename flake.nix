@@ -92,6 +92,13 @@
         ./disko-config.nix
       ];
 
+    # SD card base config (for nodes like node4 that don't use NVMe/disko)
+    sdBaseConfig =
+      sharedConfig
+      ++ [
+        nixos-raspberrypi.nixosModules.sd-image
+      ];
+
     # GPU node (SD card boot): no page-size-16k (16K pages cause issues with
     # GPU workloads). Uses sd-image module instead of disko (no NVMe SSD).
     # Reference: https://github.com/raspberrypi/linux/pull/7113
@@ -270,12 +277,12 @@
         ];
     };
 
-    # GPU-enabled Raspberry Pi 5 (8GB) with AMD RX 6700 XT eGPU (SD card)
+    # Raspberry Pi 5 (8GB) with SD card
     nixosConfigurations.node4 = nixos-raspberrypi.lib.nixosSystem {
       system = targetSystem;
       specialArgs = inputs;
       modules =
-        gpuBaseConfig
+        sdBaseConfig
         ++ [
           ./k3s-agent.nix
           ({
@@ -293,18 +300,15 @@
             networking.defaultGateway = "10.0.0.1";
             networking.nameservers = ["1.1.1.1"];
 
-            # GPU node labels and taint for Kubernetes scheduling
             services.k3s.extraFlags = lib.mkForce [
               "--node-ip=${(builtins.elemAt config.networking.interfaces.end0.ipv4.addresses 0).address}"
               "--node-external-ip=${(builtins.elemAt config.networking.interfaces.end0.ipv4.addresses 0).address}"
               "--flannel-iface=end0"
-              "--node-label=gpu.node/type=amd-vulkan"
-              "--node-label=gpu.node/vram=12Gi"
-              "--node-taint=gpu=amd:NoSchedule"
             ];
           })
         ];
     };
+
 
     packages.${system} = {
       node0 = self.nixosConfigurations.node0.config.system.build.sdImage;
