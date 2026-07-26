@@ -20,7 +20,8 @@ NixOS configurations for a 5-node k3s Kubernetes cluster running on Raspberry Pi
 - **Build installer SD image**: `nix build github:nvmd/nixos-raspberrypi#installerImages.rpi5`
 - **Deploy new node**: `nixos-anywhere --flake .#nodeN root@nixos-installer.local`
 - **Update existing node**: `nixos-rebuild switch --flake .#nodeN --target-host pi@nodeN.local --use-remote-sudo`
-- **Format code**: `alejandra .` (never use nixfmt)
+- **SSH into nodes**: `ssh -i ~/.ssh/k3s-nodes pi@<node_ip>` (e.g., `ssh -i ~/.ssh/k3s-nodes pi@10.0.0.142`)
+
 
 ## Architecture
 
