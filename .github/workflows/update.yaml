@@ -182,12 +182,6 @@ jobs:
           echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf > /dev/null
           echo "nameserver 8.8.4.4" | sudo tee -a /etc/resolv.conf > /dev/null
 
-      - name: Inject K3s token on node
-        if: steps.check_node.outputs.deploy == 'true'
-        run: |
-          echo "Injecting K3s token on node${{ matrix.node }}..."
-          ssh pi@${{ steps.check_node.outputs.node_ip }} "sudo mkdir -p /etc/rancher/k3s && echo '${{ secrets.K3S_TOKEN }}' | sudo tee /etc/rancher/k3s/token > /dev/null && sudo chmod 600 /etc/rancher/k3s/token"
-
       - name: Deploy to node${{ matrix.node }}
         if: steps.check_node.outputs.deploy == 'true'
         run: |
